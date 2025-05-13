@@ -19,7 +19,7 @@
     - 템플릿 렌더링 중에 템플릿에서 호출할 수 있도록 합니다.
 - 네이티브 코드, OpenAPI 사양, `ITextSearch`RAG 시나리오 구현은 물론 프롬프트 템플릿을 포함한 다양한 소스에서 함수를 쉽게 생성
     
-    ![image.png](attachment:0c77657b-ad50-4e75-81cd-5244c980f193:image.png)
+    ![image](https://github.com/user-attachments/assets/110aa55c-86c6-45d5-af29-2ccfb941c0fa)
 
 ## 4. Prompt Template (프롬프트 템플릿)
 
@@ -30,6 +30,8 @@
     - 커널에 템플릿을 렌더링하고 렌더링된 결과로 채팅 완성 AI 모델을 호출하도록 요청하여 채팅 완성 흐름의 시작점으로 사용한다.
     - 플러그인 함수이므로 다른 함수와 같은 방식으로 호출할 수 있다.
 - 자세한 페이지(추후)
+  
+![image](https://github.com/user-attachments/assets/9cf9cb1d-31f8-49c9-b87c-7961ff74310b)
 
 ## **5. Filter (필터)**
 
@@ -38,13 +40,12 @@
     - 즉시 렌더링 전과 후.
 - 프롬프트 템플릿은 실행 전에 항상 KernelFunction으로 변환되므로, 함수 필터와 프롬프트 필터가 모두 프롬프트 템플릿에 대해 호출된다.
 - 필터가 두 개 이상 사용 가능한 경우 중첩되므로, 함수 필터는 바깥쪽 필터이고 프롬프트 필터는 안쪽 필터이다.
-
+![image](https://github.com/user-attachments/assets/7e8ca690-7a0d-4235-8679-572cc9c73d12)
 
 - 필터는 함수 실행 방식과 시점에 대한 제어 및 가시성을 제공하여 보안을 강화
 - 예를 들어, **필터는 승인 흐름이 시작되기 전에 권한을 검증하는 데 활용**
 - 필터는 승인을 제출하려는 사람의 권한을 확인하기 위해 실행됩니다. 즉, **선택된 그룹만 프로세스를 시작할 수 있다**.
-
-
+![image](https://github.com/user-attachments/assets/e4c7663c-feea-4afe-8ec7-8ab767811b87)
 
 - **PromptFilters**: 프롬프트 실행 전후 (텍스트 변경 등)
 - **FunctionFilters**: 함수 실행 전후 (입력/출력 제어)
