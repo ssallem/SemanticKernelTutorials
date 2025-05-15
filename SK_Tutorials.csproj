@@ -13,4 +13,10 @@
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" Version="1.49.0-alpha" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="CoffeeMenu.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

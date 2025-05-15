@@ -2,9 +2,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -28,29 +25,34 @@ var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
 
 // 4. ChatHistory 생성 및 초기 메시지 추가
-var history = new ChatHistory();
-history.AddSystemMessage("You are a helpful coffee shop assistant. Read menu images and help users order.");
+var history = new ChatHistory("Your job is describing images.");
+
+// Load an image from disk.
+// byte[] bytes = File.ReadAllBytes("CoffeeMenu.jpg");
+
+// Load an image from a URL.
+using var client = new HttpClient();
+byte[] bytes = await client.GetByteArrayAsync("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png");
 
 // 5. 사용자: 이미지와 함께 메뉴 질문
 #pragma warning disable SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-history.Add(new()
-{
-    Role = AuthorRole.User,
-    AuthorName = "ssallem",
-    Items = new ChatMessageContentItemCollection
-    {
-        new TextContent { Text = "What's available to order?" },
-        new ImageContent { Uri = new Uri("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png") }
-    }
-});
+history.AddUserMessage(
+[
+    new TextContent("What’s in this image? Please tell me the drink menu and prices."),
+    new ImageContent(bytes, "image/jpeg"),
+]);
 
-// 6. 메뉴 중 첫 번째 항목 주문
-history.Add(new()
-{
-    Role = AuthorRole.User,
-    AuthorName = "ssallem",
-    Content = "I'd like to have the first option, please."
-});
+// 아래 방식으로는 Local LLM에서 ImageContent로 인식을 못 함.
+//history.Add(new()
+//{
+//    Role = AuthorRole.User,
+//    AuthorName = "ssallem",
+//    Items = new ChatMessageContentItemCollection
+//    {
+//        new TextContent { Text = "What’s in this image?" },
+//        new ImageContent { Uri = new Uri("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png") }
+//    }
+//});
 #pragma warning restore SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
 
 
@@ -73,20 +75,7 @@ foreach (var msg in history)
 
 Console.ReadLine();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region chatHistory example
 // 1. First, create a new instance of the ChatHistory class
 ChatHistory chatHistory = [];
 
@@ -136,5 +125,5 @@ chatHistory.Add(
         Content = "I'd like to have the first option, please.",
     }
 );
-
 #pragma warning restore SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
+#endregion
