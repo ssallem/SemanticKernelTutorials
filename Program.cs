@@ -13,7 +13,7 @@ var builder = Host.CreateApplicationBuilder(args);
 IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
 #pragma warning disable SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
 kernelBuilder.AddOllamaChatCompletion(
-    modelId: "deepseek-r1:14b",
+    modelId: "llama3.2-vision:11b",
     endpoint: new Uri("http://localhost:11434"),
     serviceId: "OLLAMA"
 );
@@ -29,59 +29,32 @@ var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
 // 4. ChatHistory 생성 및 초기 메시지 추가
 var history = new ChatHistory();
-history.AddSystemMessage("You are a helpful IT assistant.");
-history.AddUserMessage("Please tell me how to check which port is being used in Windows.");
+history.AddSystemMessage("You are a helpful coffee shop assistant. Read menu images and help users order.");
 
-
-// 5. 사용자 식별 포함한 메시지 추가 (AuthorName 사용 예시)
+// 5. 사용자: 이미지와 함께 메뉴 질문
 #pragma warning disable SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-history.Add(new ChatMessageContent
+history.Add(new()
 {
     Role = AuthorRole.User,
-    AuthorName = "James",
-    Content = "Is there a way to filter by process name?"
+    AuthorName = "ssallem",
+    Items = new ChatMessageContentItemCollection
+    {
+        new TextContent { Text = "What's available to order?" },
+        new ImageContent { Uri = new Uri("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png") }
+    }
+});
+
+// 6. 메뉴 중 첫 번째 항목 주문
+history.Add(new()
+{
+    Role = AuthorRole.User,
+    AuthorName = "ssallem",
+    Content = "I'd like to have the first option, please."
 });
 #pragma warning restore SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
 
-// 6. 함수 호출 시뮬레이션 (예: get_user_preferences)
-history.Add(new ChatMessageContent
-{
-    Role = AuthorRole.Assistant,
-    Items = new ChatMessageContentItemCollection
-    {
-        new FunctionCallContent(
-            functionName: "get_user_preferences",
-            pluginName: "UserProfile",
-            id: "pref001",
-            arguments: new () { { "username", "James" } }
-        )
-    }
-});
 
-// 7. 함수 호출 결과 시뮬레이션 (Tool 역할)
-history.Add(new ChatMessageContent
-{
-    Role = AuthorRole.Tool,
-    Items = new ChatMessageContentItemCollection
-    {
-        new FunctionResultContent(
-            functionName: "get_user_preferences",
-            pluginName: "UserProfile",
-            callId: "pref001",
-            result: "{ \"preferred_os\": \"Windows 11\" }"
-        )
-    }
-});
-
-// 8. 감축 전략 적용 (마지막 5개 메시지만 유지)
-var reducer = new ChatHistoryTruncationReducer(targetCount: 5);
-var reduced = await reducer.ReduceAsync(history);
-if (reduced is not null)
-{
-    history = new ChatHistory(reduced);
-}
-
-// 9. 스트리밍 방식으로 응답 받기
+// 스트리밍 방식으로 응답 받기
 Console.WriteLine("\n▶ Assistant Response:");
 await foreach (var chunk in chatCompletionService.GetStreamingChatMessageContentsAsync(
     chatHistory: history,
