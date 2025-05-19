@@ -2,67 +2,136 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using SK_Tutorials;
+using SK_Tutorials.Interfaces;
+using System.ComponentModel;
+using System.Text.Json;
+using Microsoft.SemanticKernel.Connectors.Ollama;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+// 1. DI 등록
+builder.Services.AddTransient<IPizzaService, DummyPizzaService>();
+builder.Services.AddTransient<IUserContext, DummyUserContext>();
+builder.Services.AddTransient<IPaymentService, DummyPaymentService>();
 
-// 1. Kernel 설정 (Ollama 사용)
-IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
-#pragma warning disable SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-kernelBuilder.AddOllamaChatCompletion(
-    modelId: "llama3.2-vision:11b",
-    endpoint: new Uri("http://localhost:11434"),
-    serviceId: "OLLAMA"
-);
-#pragma warning restore SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-// 2. DI 등록
-builder.Services.AddTransient((serviceProvider) => new Kernel(serviceProvider));
+// 2. 호스트 빌드 및 서비스 제공자 가져오기
 var host = builder.Build();
-Kernel kernel = kernelBuilder.Build();
+var serviceProvider = host.Services;
 
-// 3. ChatCompletion 서비스 가져오기
+// 3. Kernel 설정 (Ollama 사용) - 서비스 제공자 연결
+IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
+kernelBuilder.Services.AddSingleton(serviceProvider); // 서비스 제공자를 Kernel에 연결
+
+//#pragma warning disable SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
+//kernelBuilder.AddOllamaChatCompletion(
+//    modelId: "llama3.3",
+//    endpoint: new Uri("http://localhost:11434"),
+//    serviceId: "OLLAMA"
+//);
+//#pragma warning restore SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
+
+kernelBuilder.WithOllamaService(timeout: TimeSpan.FromMinutes(10));
+
+
+// 4. 플러그인 직접 인스턴스화
+var pizzaService = serviceProvider.GetRequiredService<IPizzaService>();
+var userContext = serviceProvider.GetRequiredService<IUserContext>();
+var paymentService = serviceProvider.GetRequiredService<IPaymentService>();
+var plugin = new OrderPizzaPlugin(pizzaService, userContext, paymentService);
+
+// kernelBuilder.Plugins.AddFromType<OrderPizzaPlugin>("OrderPizza");
+// 5. 커널 빌드
+kernelBuilder.Plugins.AddFromObject(plugin, "OrderPizza");
+
+Kernel kernel = kernelBuilder.Build();
 var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+// 5. 초기 대화 셋팅
+var history = new ChatHistory();
 
-// 4. ChatHistory 생성 및 초기 메시지 추가
-var history = new ChatHistory("Your job is describing images.");
+history.AddSystemMessage(@"You are a pizza ordering assistant. 
+When a user wants to order a pizza, ALWAYS use the OrderPizza.AddToCart function to add it to their cart.
+Available pizza sizes: small, medium, large
+Available toppings: Cheese, Pepperoni, Mushrooms
+After adding to cart, offer to checkout or recommend more items.");
 
-// Load an image from disk.
-// byte[] bytes = File.ReadAllBytes("CoffeeMenu.jpg");
+history.AddUserMessage("I'd like to order a medium pizza with cheese and pepperoni please");
 
-// Load an image from a URL.
-using var client = new HttpClient();
-byte[] bytes = await client.GetByteArrayAsync("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png");
-
-// 5. 사용자: 이미지와 함께 메뉴 질문
-#pragma warning disable SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-history.AddUserMessage(
-[
-    new TextContent("What’s in this image? Please tell me the drink menu and prices."),
-    new ImageContent(bytes, "image/jpeg"),
-]);
-
-// 아래 방식으로는 Local LLM에서 ImageContent로 인식을 못 함.
-//history.Add(new()
-//{
-//    Role = AuthorRole.User,
-//    AuthorName = "ssallem",
-//    Items = new ChatMessageContentItemCollection
-//    {
-//        new TextContent { Text = "What’s in this image?" },
-//        new ImageContent { Uri = new Uri("https://raw.githubusercontent.com/ssallem/SemanticKernelTutorials/refs/heads/main/Assets/CoffeeMenu.png") }
-//    }
-//});
-#pragma warning restore SKEXP0001 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
-
-
-// 스트리밍 방식으로 응답 받기
-Console.WriteLine("\n▶ Assistant Response:");
-await foreach (var chunk in chatCompletionService.GetStreamingChatMessageContentsAsync(
-    chatHistory: history,
-    kernel: kernel))
+// 7. 자동 함수 호출 설정 (Ollama에 맞게 설정)
+var executionSettings = new OpenAIPromptExecutionSettings
 {
-    Console.Write(chunk);
+    ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
+    Temperature = 0.7,
+    MaxTokens = 2000,
+    TopP = 0.95
+};
+
+// 6. 자동 함수 호출 생성
+//OpenAIPromptExecutionSettings executionSettings = new()
+//{
+//    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+//};
+
+try
+{
+    Console.WriteLine("\n▶ Assistant Response:");
+    var result = await chatCompletionService.GetChatMessageContentAsync(
+            chatHistory: history,
+            executionSettings: executionSettings,            
+            kernel: kernel);
+
+    // 9. 응답 및 잠재적 함수 호출 결과 출력
+    Console.WriteLine("\n▶ 응답:");
+    Console.WriteLine(result);
+
+    // 10. 대화 히스토리에 응답 추가
+    history.AddAssistantMessage(result.ToString());
+
+    Console.WriteLine("\n=== Chat History ===");
+    foreach (var msg in history)
+    {
+        Console.WriteLine($"[{msg.Role}]: {msg.Content}");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"오류 발생: {ex.Message}");
+    Console.WriteLine($"스택 추적: {ex.StackTrace}");
+
+    if (ex.InnerException != null)
+    {
+        Console.WriteLine($"내부 예외: {ex.InnerException.Message}");
+    }
+}
+
+// 11. 함수 호출 수동 확인
+Console.WriteLine("\n\n=== 함수 호출 수동 확인 ===");
+try
+{
+    // 플러그인에서 함수 직접 실행해보기
+    var addToCartFunction = kernel.Plugins["OrderPizza"]["add_pizza_to_cart"];
+    if (addToCartFunction != null)
+    {
+        Console.WriteLine("AddToCart 함수 직접 실행 시도...");
+        var arguments = new KernelArguments
+        {
+            ["size"] = "medium",
+            ["toppings"] = "Pepperoni" // 열거형 값과 정확히 일치하도록 수정
+        };
+
+        var functionResult = await kernel.InvokeAsync(addToCartFunction, arguments);
+        Console.WriteLine($"함수 호출 결과: {functionResult}");
+    }
+    else
+    {
+        Console.WriteLine("AddToCart 함수를 찾을 수 없습니다.");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"함수 직접 호출 오류: {ex.Message}");
 }
 
 Console.WriteLine("\n\n=== Chat History ===");
