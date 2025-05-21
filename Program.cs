@@ -32,7 +32,7 @@ kernelBuilder.Services.AddSingleton(serviceProvider); // 서비스 제공자를 
 //);
 //#pragma warning restore SKEXP0070 // 형식은 평가 목적으로 제공되며, 이후 업데이트에서 변경되거나 제거될 수 있습니다. 계속하려면 이 진단을 표시하지 않습니다.
 
-kernelBuilder.WithOllamaService(timeout: TimeSpan.FromMinutes(10));
+kernelBuilder.WithOllamaService(timeout: TimeSpan.FromMinutes(10), modelId: "llama3.3");
 
 
 // 4. 플러그인 직접 인스턴스화
@@ -59,7 +59,7 @@ After adding to cart, offer to checkout or recommend more items.");
 
 history.AddUserMessage("I'd like to order a medium pizza with cheese and pepperoni please");
 
-// 7. 자동 함수 호출 설정 (Ollama에 맞게 설정)
+// 6. 자동 함수 호출 설정 (Ollama에 맞게 설정)
 var executionSettings = new OpenAIPromptExecutionSettings
 {
     ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
@@ -82,11 +82,11 @@ try
             executionSettings: executionSettings,            
             kernel: kernel);
 
-    // 9. 응답 및 잠재적 함수 호출 결과 출력
+    // 7. 응답 및 잠재적 함수 호출 결과 출력
     Console.WriteLine("\n▶ 응답:");
     Console.WriteLine(result);
 
-    // 10. 대화 히스토리에 응답 추가
+    // 8. 대화 히스토리에 응답 추가
     history.AddAssistantMessage(result.ToString());
 
     Console.WriteLine("\n=== Chat History ===");
@@ -106,11 +106,11 @@ catch (Exception ex)
     }
 }
 
-// 11. 함수 호출 수동 확인
+// 9. 함수 호출 수동 확인
 Console.WriteLine("\n\n=== 함수 호출 수동 확인 ===");
 try
 {
-    // 플러그인에서 함수 직접 실행해보기
+    // 10. 플러그인에서 함수 직접 실행해보기
     var addToCartFunction = kernel.Plugins["OrderPizza"]["add_pizza_to_cart"];
     if (addToCartFunction != null)
     {
